@@ -10,7 +10,6 @@ class AuthController extends Controller
 {
   
     // Registracija korisnika
-
     public function register(Request $request)
     {
         $request->validate([
