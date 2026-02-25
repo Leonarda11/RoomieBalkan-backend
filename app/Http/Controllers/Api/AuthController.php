@@ -10,9 +10,6 @@ use Illuminate\Support\Facades\Hash;
 
 class AuthController extends Controller
 {
-    // ===========================
-    // Registracija korisnika
-    // ===========================
     public function register(Request $request)
     {
         $request->validate([
@@ -25,22 +22,19 @@ class AuthController extends Controller
         $user = User::create([
             'name'     => $request->name,
             'email'    => $request->email,
-            'password' => Hash::make($request->password),
+            'password' => $request->password,
             'role'     => $request->role ?? 'user',
         ]);
 
         $token = $user->createToken('api-token')->plainTextToken;
 
         return response()->json([
-            'message' => 'Registracija uspješna ✅',
+            'message' => 'Registracija uspješna ',
             'token'   => $token,
             'user'    => $this->formatUser($user),
         ], 201);
     }
 
-    // ===========================
-    // Login
-    // ===========================
     public function login(Request $request)
     {
         $request->validate([
@@ -48,46 +42,40 @@ class AuthController extends Controller
             'password' => 'required|string',
         ]);
 
-        if (!Auth::attempt($request->only('email', 'password'))) {
-            return response()->json(['message' => 'Neispravni podaci ❌'], 401);
+        $user = User::where('email', $request->email)
+                    ->where('password', $request->password)
+                    ->first();
+
+        if (!$user) {
+            return response()->json(['message' => 'Neispravni podaci '], 401);
         }
 
-        $user = Auth::user();
+        Auth::login($user);
         $token = $user->createToken('api-token')->plainTextToken;
 
         return response()->json([
-            'message' => 'Login uspješan ✅',
+            'message' => 'Login uspješan ',
             'token'   => $token,
             'user'    => $this->formatUser($user),
         ]);
     }
 
-    // ===========================
-    // Logout
-    // ===========================
     public function logout(Request $request)
     {
         $request->user()->currentAccessToken()->delete();
 
-        return response()->json(['message' => 'Uspješno logout ✅']);
+        return response()->json(['message' => 'Uspješno logout ']);
     }
 
-    // ===========================
-    // Trenutno prijavljeni korisnik
-    // ===========================
     public function me(Request $request)
     {
         return response()->json($this->formatUser($request->user()));
     }
 
-    // ===========================
-    // Superadmin: Kreiranje admina
-    // ===========================
     public function createAdmin(Request $request)
     {
-        // Samo superadmin može kreirati admina
         if ($request->user()->role !== 'superadmin') {
-            return response()->json(['message' => 'Nemate ovlaštenje ❌'], 403);
+            return response()->json(['message' => 'Nemate ovlaštenje '], 403);
         }
 
         $request->validate([
@@ -99,23 +87,20 @@ class AuthController extends Controller
         $admin = User::create([
             'name'     => $request->name,
             'email'    => $request->email,
-            'password' => Hash::make($request->password),
+            'password' => $request->password,
             'role'     => 'admin',
         ]);
 
         return response()->json([
-            'message' => 'Admin kreiran ✅',
+            'message' => 'Admin kreiran ',
             'user'    => $this->formatUser($admin),
         ], 201);
     }
 
-    // ===========================
-    // Superadmin: Lista svih korisnika
-    // ===========================
     public function listUsers(Request $request)
     {
         if ($request->user()->role !== 'superadmin') {
-            return response()->json(['message' => 'Nemate ovlaštenje ❌'], 403);
+            return response()->json(['message' => 'Nemate ovlaštenje '], 403);
         }
 
         $users = User::all()->map(fn($user) => $this->formatUser($user));
@@ -123,20 +108,16 @@ class AuthController extends Controller
         return response()->json($users);
     }
 
-    // ===========================
-    // Superadmin: Ažuriranje korisnika
-    // ===========================
     public function updateUser(Request $request, $id)
     {
         if ($request->user()->role !== 'superadmin') {
-            return response()->json(['message' => 'Nemate ovlaštenje ❌'], 403);
+            return response()->json(['message' => 'Nemate ovlaštenje '], 403);
         }
 
         $user = User::findOrFail($id);
 
-        // Zaštita: ne može se mjenjati drugi superadmin
         if ($user->role === 'superadmin' && $user->id !== $request->user()->id) {
-            return response()->json(['message' => 'Ne možete mijenjati drugog superadmina ❌'], 403);
+            return response()->json(['message' => 'Ne možete mijenjati drugog superadmina '], 403);
         }
 
         $request->validate([
@@ -146,51 +127,43 @@ class AuthController extends Controller
             'password' => 'sometimes|string|min:6',
         ]);
 
-        // Zaštita: ne smije biti više od 2 superadmina
         if ($request->role === 'superadmin') {
             $superadminCount = User::where('role', 'superadmin')->count();
             if ($superadminCount >= 2 && $user->role !== 'superadmin') {
-                return response()->json(['message' => 'Maksimalan broj superadmina je 2 ❌'], 400);
+                return response()->json(['message' => 'Maksimalan broj superadmina je 2 '], 400);
             }
         }
 
         if ($request->has('name')) $user->name = $request->name;
         if ($request->has('email')) $user->email = $request->email;
         if ($request->has('role')) $user->role = $request->role;
-        if ($request->has('password')) $user->password = Hash::make($request->password);
+        if ($request->has('password')) $user->password = $request->password;
 
         $user->save();
 
         return response()->json([
-            'message' => 'Korisnik ažuriran ✅',
+            'message' => 'Korisnik ažuriran ',
             'user'    => $this->formatUser($user),
         ]);
     }
 
-    // ===========================
-    // Superadmin: Brisanje korisnika
-    // ===========================
     public function deleteUser(Request $request, $id)
     {
         if ($request->user()->role !== 'superadmin') {
-            return response()->json(['message' => 'Nemate ovlaštenje ❌'], 403);
+            return response()->json(['message' => 'Nemate ovlaštenje '], 403);
         }
 
         $user = User::findOrFail($id);
 
-        // Ne može obrisati samog sebe ili drugog superadmina
         if ($user->role === 'superadmin') {
-            return response()->json(['message' => 'Ne možete obrisati superadmina ❌'], 403);
+            return response()->json(['message' => 'Ne možete obrisati superadmina '], 403);
         }
 
         $user->delete();
 
-        return response()->json(['message' => 'Korisnik obrisan ✅']);
+        return response()->json(['message' => 'Korisnik obrisan ']);
     }
 
-    // ===========================
-    // Helper: format usera za response
-    // ===========================
     private function formatUser(User $user): array
     {
         return [
