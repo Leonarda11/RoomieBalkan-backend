@@ -22,10 +22,9 @@ class User extends Authenticatable
     ];
 
     // Polja koja će biti skrivena u JSON-u
-    protected $hidden = [
-        'password',
-        'remember_token',
-    ];
+protected $hidden = [
+    'remember_token',
+];
 
    
     protected $casts = [
