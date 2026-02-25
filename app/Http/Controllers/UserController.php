@@ -37,7 +37,7 @@ class UserController extends Controller
         $user = User::create([
             ...$data,
             'role' => $role,
-            'password' => \Hash::make($data['password'])
+            'password' => $data['password']
         ]);
 
         return response()->json($user, 201);
@@ -65,11 +65,12 @@ class UserController extends Controller
         $data = $request->validate([
             'name' => 'sometimes|required',
             'email' => 'sometimes|required|email|unique:users,email,'.$user->id,
-            'role' => 'sometimes|required|in:user,admin,super_admin'
+            'role' => 'sometimes|required|in:user,admin,super_admin',
+            'password' => 'sometimes|min:6'
         ]);
 
         if (isset($data['password'])) {
-            $data['password'] = \Hash::make($data['password']);
+            $data['password'] = $data['password'];
         }
 
         $user->update($data);
